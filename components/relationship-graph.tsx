@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useMemo, useRef, useEffect } from "react"
+import { motion } from "framer-motion"
 import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { mockStockData } from "@/lib/mock-data"
@@ -257,17 +258,18 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           }}
         >
           <TooltipWrapper node={node}>
-            <div
+            <motion.div
+              whileHover={{ y: -5 }}
+              transition={{ type: "spring", stiffness: 300 }}
               className={`
                 px-4 py-3 rounded-xl shadow-lg border-2 cursor-pointer
                 flex items-center justify-center text-center
                 min-w-[140px] max-w-[200px]
-                transition-transform duration-300 ease-out hover:-translate-y-2
                 ${getNodeColor(node.type)}
               `}
             >
               <span className="text-sm font-bold line-clamp-2">{node.label}</span>
-            </div>
+            </motion.div>
           </TooltipWrapper>
         </div>
       ))}
