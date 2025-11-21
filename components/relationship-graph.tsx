@@ -379,9 +379,13 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
 
       {node.type === "policy" && (
         <div className="pt-2 border-t border-border space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">관련 정책:</span>
+            <span className="text-sm font-medium">{safeRender(node.data?.description || node.label || "N/A")}</span>
+          </div>
           {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 ? (
             <>
-              <div className="text-xs font-medium text-muted-foreground">관련 근거</div>
+              <div className="text-xs font-medium text-muted-foreground mt-3">관련 근거</div>
               {node.data.evidence.map((evidence: any, idx: number) => {
                 if (!evidence || typeof evidence !== "object") {
                   return null
@@ -461,10 +465,14 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
 
       {node.type === "sector" && (
         <div className="pt-2 border-t border-border space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">산업 분야:</span>
+            <span className="text-sm font-medium">{safeRender(node.data?.sector || node.label || "N/A")}</span>
+          </div>
           {node.data?.impact_description && (
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">영향 분석</div>
-              <p className="text-sm leading-relaxed whitespace-pre-line">{safeRender(node.data.impact_description)}</p>
+            <div className="flex items-start gap-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">영향 분석:</span>
+              <p className="text-sm leading-relaxed">{safeRender(node.data.impact_description)}</p>
             </div>
           )}
         </div>
