@@ -459,7 +459,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                   y={pos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  className="text-sm md:text-base font-medium pointer-events-none drop-shadow-md"
+                  className="text-sm md:text-lg font-medium pointer-events-none drop-shadow-md"
                   style={{ userSelect: "none", fill: getTextColor(node.type) }}
                 >
                   {truncateText(node.label, isMobile ? 15 : 20)}
@@ -475,7 +475,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           className="absolute z-50 pointer-events-auto"
           style={{
             left: `${nodePositions.get(hoveredNode.id)?.x || 0}px`,
-            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 20}px`,
+            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 30}px`,
             transform: "translate(-50%, -100%)",
           }}
           onMouseEnter={() => setHoveredNode(hoveredNode)}
@@ -503,8 +503,8 @@ function NodeShape({
   isSelected: boolean
   isMobile: boolean
 }) {
-  const width = isMobile ? 150 : 200
-  const height = isMobile ? 50 : 70
+  const width = isMobile ? 225 : 300
+  const height = isMobile ? 75 : 105
   const rx = isMobile ? 8 : 10
   const ry = isMobile ? 8 : 10
 
