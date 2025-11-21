@@ -52,6 +52,8 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       return { nodes: [], edges: [] }
     }
 
+    console.log("[v0] Processing influence_chains:", data.influence_chains)
+
     // Create input node (politician) - with fallback
     const politician = data.influence_chains[0]?.politician || "Unknown"
     nodes.push({
@@ -72,30 +74,44 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         return
       }
 
+      console.log(`[v0] Processing chain ${idx}:`, {
+        policy: chain.policy,
+        sector: chain.industry_or_sector,
+        impact: chain.impact_description,
+        evidence: chain.evidence,
+      })
+
       // Add policy node - allow "None directly linked"
       const policyLabel = chain.policy && chain.policy.trim() !== "" ? chain.policy : "None directly linked"
-      policyNodes.push({
+      const policyNode = {
         id: `policy-${idx}`,
         label: policyLabel,
         fullText: policyLabel,
-        type: "policy",
+        type: "policy" as const,
         data: {
+          policy: policyLabel, // Store policy value directly
           description: policyLabel,
           evidence: Array.isArray(chain.evidence) ? chain.evidence : [],
         },
-      })
+      }
+      policyNodes.push(policyNode)
+      console.log(`[v0] Created policy node:`, policyNode)
 
       // Add sector node - with fallback
       const sector = chain.industry_or_sector || "Unknown Sector"
-      sectorNodes.push({
+      const impactDescription = chain.impact_description || "No description available"
+      const sectorNode = {
         id: `sector-${idx}`,
         label: sector,
-        type: "sector",
+        type: "sector" as const,
         data: {
-          sector: sector,
-          impact_description: chain.impact_description || "No description available",
+          sector: sector, // Ensure sector is stored
+          impactDescription: impactDescription, // Store impact description with correct key
+          impact_description: impactDescription, // Also store with underscore version for compatibility
         },
-      })
+      }
+      sectorNodes.push(sectorNode)
+      console.log(`[v0] Created sector node:`, sectorNode)
 
       // Add company nodes - with array safety check
       if (Array.isArray(chain.companies)) {
@@ -125,6 +141,11 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
     nodes.push(...companyNodes)
 
     console.log("[v0] Processed nodes:", nodes.length, "edges:", edges.length)
+    console.log(
+      "[v0] Final nodes data:",
+      nodes.map((n) => ({ id: n.id, type: n.type, data: n.data })),
+    )
+
     return { nodes, edges }
   }, [data])
 
@@ -365,6 +386,8 @@ function NodeShape({ type, x, y, color, isSelected, isMobile }: NodeShapeProps) 
 }
 
 function NodeTooltipContent({ node }: { node: ProcessedNode }) {
+  console.log("[v0] Rendering tooltip for node:", node.id, "data:", node.data)
+
   return (
     <div className="space-y-3">
       <div>
@@ -375,7 +398,9 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         <div className="pt-2 border-t border-border space-y-2">
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">관련 정책: </span>
-            <span className="font-medium">{safeRender(node.data?.description || node.label || "N/A")}</span>
+            <span className="font-medium">
+              {safeRender(node.data?.policy || node.data?.description || node.label || "N/A")}
+            </span>
           </div>
           {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 && (
             <div className="mt-3">
@@ -419,10 +444,12 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
             <span className="font-medium text-muted-foreground">산업 분야: </span>
             <span className="font-medium">{safeRender(node.data?.sector || node.label || "N/A")}</span>
           </div>
-          {node.data?.impact_description && (
+          {(node.data?.impactDescription || node.data?.impact_description) && (
             <div className="text-sm">
               <span className="font-medium text-muted-foreground">영향 분석: </span>
-              <span className="leading-relaxed">{safeRender(node.data.impact_description)}</span>
+              <span className="leading-relaxed">
+                {safeRender(node.data.impactDescription || node.data.impact_description)}
+              </span>
             </div>
           )}
         </div>
