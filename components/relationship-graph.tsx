@@ -213,30 +213,30 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         })
       })
 
-      const policyTotalHeight = height - padding * 2 - 100 // Reduced spacing
+      const policyTotalHeight = height - padding * 2
       const policySpacing = policyTotalHeight / (policyNodes.length + 1)
       policyNodes.forEach((node, i) => {
         positions.set(node.id, {
           x: padding + colWidth * 1.5,
-          y: padding + 50 + policySpacing * (i + 1),
+          y: padding + policySpacing * (i + 1),
         })
       })
 
-      const sectorTotalHeight = height - padding * 2 - 100
+      const sectorTotalHeight = height - padding * 2
       const sectorSpacing = sectorTotalHeight / (sectorNodes.length + 1)
       sectorNodes.forEach((node, i) => {
         positions.set(node.id, {
           x: padding + colWidth * 2.5,
-          y: padding + 50 + sectorSpacing * (i + 1),
+          y: padding + sectorSpacing * (i + 1),
         })
       })
 
-      const enterpriseTotalHeight = height - padding * 2 - 100
+      const enterpriseTotalHeight = height - padding * 2
       const enterpriseSpacing = enterpriseTotalHeight / (enterpriseNodes.length + 1)
       enterpriseNodes.forEach((node, i) => {
         positions.set(node.id, {
           x: padding + colWidth * 3.5,
-          y: padding + 50 + enterpriseSpacing * (i + 1),
+          y: padding + enterpriseSpacing * (i + 1),
         })
       })
     }
@@ -465,7 +465,7 @@ interface NodeShapeProps {
 
 function NodeShape({ type, x, y, color, isSelected, isMobile }: NodeShapeProps) {
   const strokeWidth = isSelected ? 3 : 1.5
-  const stroke = isSelected ? "hsl(var(--primary))" : "white"
+  const stroke = isSelected ? "hsl(var(--primary))" : getBorderColor(type)
   const scale = isMobile ? 0.8 : 1
 
   let width = 234 * scale // 180 * 1.3
@@ -494,6 +494,21 @@ function NodeShape({ type, x, y, color, isSelected, isMobile }: NodeShapeProps) 
       style={{ filter: "drop-shadow(0 4px 6px rgb(0 0 0 / 0.1))" }}
     />
   )
+}
+
+function getBorderColor(type: ProcessedNode["type"]) {
+  switch (type) {
+    case "input":
+      return "rgb(75, 85, 99)" // gray-600 for black nodes
+    case "policy":
+      return "rgb(107, 114, 128)" // gray-500 for dark gray nodes
+    case "sector":
+      return "rgb(209, 213, 219)" // gray-300 for light gray nodes
+    case "enterprise":
+      return "rgb(229, 231, 235)" // gray-200 for white nodes
+    default:
+      return "rgb(156, 163, 175)" // gray-400 default
+  }
 }
 
 function NodeTooltipContent({ node }: { node: ProcessedNode }) {
