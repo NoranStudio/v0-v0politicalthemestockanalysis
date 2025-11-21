@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import type { AnalysisReport } from "@/lib/types"
-import { ExternalLink } from "lucide-react"
-import { cn, safeRender } from "@/lib/utils"
+import { safeRender } from "@/lib/utils"
 
 interface RelationshipGraphProps {
   data: AnalysisReport
@@ -170,20 +169,76 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
   }, [])
 
   useEffect(() => {
-    if (nodes.length > 0) {
+    if (data.length === 0) return
+
+    const processData = () => {
       const columnGroups = new Map<string, ProcessedNode[]>()
-      nodes.forEach((node) => {
-        const column = node.type
-        if (!columnGroups.has(column)) {
-          columnGroups.set(column, [])
+      columnGroups.set("input", [])
+      columnGroups.set("policy", [])
+      columnGroups.set("sector", [])
+      columnGroups.set("enterprise", [])
+
+      console.log("[v0] Processing data with nodes:", data)
+
+      data.forEach((item, index) => {
+        const inputNode: ProcessedNode = {
+          id: `input-${index}`,
+          label: item.politician || "Unknown",
+          type: "input",
+          fullText: item.politician || "Unknown",
+          data: item,
         }
-        columnGroups.get(column)!.push(node)
+        columnGroups.get("input")?.push(inputNode)
+
+        if (item.policy) {
+          const policyNode: ProcessedNode = {
+            id: `policy-${index}`,
+            label: truncateText(item.policy, 30),
+            type: "policy",
+            fullText: item.policy,
+            data: { ...item, policy: item.policy },
+          }
+          columnGroups.get("policy")?.push(policyNode)
+        }
+
+        if (item.industry_or_sector) {
+          const sectorNode: ProcessedNode = {
+            id: `sector-${index}`,
+            label: truncateText(item.industry_or_sector, 30),
+            type: "sector",
+            fullText: item.industry_or_sector,
+            data: {
+              ...item,
+              sector: item.industry_or_sector,
+              impactDescription: item.impact_description,
+            },
+          }
+          columnGroups.get("sector")?.push(sectorNode)
+        }
+
+        if (item.companies && Array.isArray(item.companies)) {
+          item.companies.forEach((company, companyIndex) => {
+            const enterpriseNode: ProcessedNode = {
+              id: `enterprise-${index}-${companyIndex}`,
+              label: truncateText(company, 30),
+              type: "enterprise",
+              fullText: company,
+              data: item,
+            }
+            columnGroups.get("enterprise")?.push(enterpriseNode)
+          })
+        }
       })
 
+      setNodePositions(
+        Array.from(columnGroups.values())
+          .flat()
+          .filter((node) => node !== undefined),
+      )
+
       const newPositions = new Map<string, NodePosition>()
-      const isMobile = window.innerWidth < 768
-      const verticalGap = 80
-      const nodeHeight = 100
+      const verticalGap = 120 // Increased vertical gap for larger nodes
+      const nodeHeight = 200 // Double node height from 100 to 200
 
       const columnOrder = ["input", "policy", "sector", "enterprise"]
       const columns: ProcessedNode[][] = columnOrder.map((type) => columnGroups.get(type) || [])
@@ -208,24 +263,9 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       setNodePositions(newPositions)
       setDimensions({ width: totalWidth, height: calculatedHeight })
     }
-  }, [nodes])
 
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (svgRef.current) {
-        const container = svgRef.current.parentElement
-        if (container) {
-          const width = container.clientWidth
-          const height = dimensions.height
-          setDimensions((prev) => ({ width, height: prev.height }))
-        }
-      }
-    }
-
-    updateDimensions()
-    window.addEventListener("resize", updateDimensions)
-    return () => window.removeEventListener("resize", updateDimensions)
-  }, [dimensions.height])
+    processData()
+  }, [data, isMobile])
 
   useEffect(() => {
     if (stockFetchedRef.current) return
@@ -459,7 +499,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                   y={pos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  className="text-sm md:text-base font-medium pointer-events-none drop-shadow-md"
+                  className="text-base md:text-lg font-medium pointer-events-none drop-shadow-md"
                   style={{ userSelect: "none", fill: getTextColor(node.type) }}
                 >
                   {truncateText(node.label, isMobile ? 15 : 20)}
@@ -475,7 +515,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           className="absolute z-50 pointer-events-auto"
           style={{
             left: `${nodePositions.get(hoveredNode.id)?.x || 0}px`,
-            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 80}px`,
+            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 110}px`,
             transform: "translate(-50%, -100%)",
           }}
         >
@@ -494,17 +534,17 @@ function NodeShape({
   isSelected,
   isMobile,
 }: {
-  type: ProcessedNode["type"]
+  type: string
   x: number
   y: number
   color: string
   isSelected: boolean
   isMobile: boolean
 }) {
-  const width = isMobile ? 150 : 200
-  const height = isMobile ? 50 : 70
-  const rx = isMobile ? 8 : 10
-  const ry = isMobile ? 8 : 10
+  const width = isMobile ? 300 : 400
+  const height = isMobile ? 100 : 140
+  const rx = isMobile ? 12 : 16
+  const ry = isMobile ? 12 : 16
 
   return (
     <rect
@@ -533,124 +573,178 @@ function NodeTooltipContent({
   isLoadingStocks: boolean
 }) {
   return (
-    <div className="max-w-md bg-background/95 backdrop-blur-sm text-foreground rounded-lg shadow-xl border p-4">
-      <div>
-        <div className="font-bold text-lg mb-1">{safeRender(node.fullText || node.label || "N/A")}</div>
-      </div>
+    <div className="relative">
+      <div className="max-w-xl bg-background/95 backdrop-blur-sm text-foreground rounded-lg shadow-xl border p-6">
+        <div>
+          <div className="font-bold text-xl mb-2">{safeRender(node.fullText || node.label || "N/A")}</div>
+        </div>
 
-      {node.type === "policy" && (
-        <div className="pt-2 border-t border-border space-y-2">
-          <div className="text-sm">
-            <span className="font-medium text-muted-foreground">관련 정책: </span>
-            <span className="font-medium text-foreground">
-              {safeRender(node.data?.policy || node.data?.description || node.label || "N/A")}
-            </span>
-          </div>
-          {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 && (
-            <div className="mt-3">
-              <div className="text-sm font-medium text-muted-foreground mb-2">관련 근거</div>
-              {node.data.evidence.map((evidence: any, idx: number) => {
-                if (!evidence || typeof evidence !== "object") return null
-
-                const title = evidence.source_title || evidence.title || "제목 없음"
-                const url = evidence.url || evidence.source_url || ""
-
-                return (
-                  <div key={idx} className="flex flex-col gap-1 mb-2">
-                    <span className="text-sm font-medium text-foreground">{safeRender(title)}</span>
-                    {url && (
-                      <a
-                        href={safeRender(url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline flex items-center gap-1"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span className="break-all">{safeRender(url)}</span>
-                      </a>
-                    )}
-                  </div>
-                )
-              })}
+        {node.type === "policy" && (
+          <div className="pt-3 border-t border-border space-y-3">
+            <div className="text-base">
+              <span className="font-medium text-muted-foreground">관련 정책: </span>
+              <span className="font-medium text-foreground">
+                {safeRender(node.data?.policy || node.data?.description || node.label || "N/A")}
+              </span>
             </div>
-          )}
-        </div>
-      )}
-
-      {node.type === "sector" && (
-        <div className="pt-2 border-t border-border space-y-3">
-          <div className="text-sm">
-            <span className="font-medium text-muted-foreground">산업 분야: </span>
-            <span className="font-medium text-foreground">{safeRender(node.data?.sector || node.label || "N/A")}</span>
-          </div>
-          <div className="text-sm">
-            <span className="font-medium text-muted-foreground">영향 분석: </span>
-            <span className="text-foreground">
-              {safeRender(node.data?.impactDescription || node.data?.impact_description || "N/A")}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {node.type === "enterprise" && (
-        <div className="pt-2 border-t border-border space-y-3">
-          <div className="text-sm font-medium text-muted-foreground mb-2">주가 정보</div>
-          {isLoadingStocks ? (
-            <div className="text-sm text-muted-foreground">로딩 중...</div>
-          ) : (
-            <>
-              {(() => {
-                const companies = node.label.includes(",") ? node.label.split(",").map((c) => c.trim()) : [node.label]
-
-                return companies.map((company, idx) => {
-                  const stockData = stockPrices[company]
-
-                  if (!stockData) {
-                    return (
-                      <div key={idx} className="mb-3">
-                        <div className="font-medium text-sm text-foreground mb-1">{company}</div>
-                        <div className="text-sm text-gray-600">주가 정보를 불러올 수 없습니다</div>
-                      </div>
-                    )
+            {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 && (
+              <div className="mt-4">
+                <div className="text-base font-medium text-muted-foreground mb-2">관련 근거</div>
+                {node.data.evidence.map((evidence: any, idx: number) => {
+                  if (!evidence || typeof evidence !== "object") {
+                    return null
                   }
 
-                  if (stockData.error) {
-                    return (
-                      <div key={idx} className="mb-3">
-                        <div className="font-medium text-sm text-foreground mb-1">{company}</div>
-                        <div className="text-sm text-gray-600">{stockData.error}</div>
-                      </div>
-                    )
-                  }
+                  const sourceTitle = safeRender(evidence.source_title)
+                  const url = typeof evidence.url === "string" ? evidence.url : ""
 
-                  const isUp = stockData.direction === "상승"
-                  const priceColor = isUp ? "text-red-500" : "text-blue-500"
+                  if (!sourceTitle) return null
 
                   return (
-                    <div key={idx} className="mb-3">
-                      <div className="font-medium text-sm text-foreground mb-1">{company}</div>
-                      <div className="flex items-baseline gap-2">
-                        <span className={cn("text-2xl font-bold", priceColor)}>{stockData.price || "N/A"}</span>
-                        <span className="text-xs text-muted-foreground">{stockData.direction || ""}</span>
-                      </div>
-                      {stockData.change && (
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {stockData.change} ({stockData.change_percent || ""})
-                        </div>
+                    <div key={idx} className="mb-2 text-sm">
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline flex items-start gap-1"
+                        >
+                          <span className="flex-shrink-0 mt-0.5">🔗</span>
+                          <span className="break-words">{sourceTitle}</span>
+                        </a>
+                      ) : (
+                        <div className="text-muted-foreground">{sourceTitle}</div>
                       )}
                     </div>
                   )
-                })
-              })()}
-            </>
-          )}
-        </div>
-      )}
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {node.type === "sector" && (
+          <div className="pt-3 border-t border-border space-y-3">
+            <div className="text-base">
+              <span className="font-medium text-muted-foreground">산업 분야: </span>
+              <span className="font-medium text-foreground">
+                {safeRender(node.data?.sector || node.data?.industry_or_sector || node.label || "N/A")}
+              </span>
+            </div>
+            <div className="text-base">
+              <span className="font-medium text-muted-foreground">영향 분석: </span>
+              <span className="text-foreground">
+                {safeRender(node.data?.impactDescription || node.data?.impact_description || "N/A")}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {node.type === "enterprise" && (
+          <div className="pt-3 border-t border-border space-y-3">
+            <div className="text-base font-semibold text-muted-foreground mb-3">주가 정보</div>
+            {isLoadingStocks ? (
+              <div className="text-base text-muted-foreground">주가 정보를 불러오는 중...</div>
+            ) : stockPrices[node.fullText || node.label] ? (
+              <div className="space-y-2">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-sm text-muted-foreground">현재가:</span>
+                  <span
+                    className={`text-3xl font-bold ${
+                      stockPrices[node.fullText || node.label].direction === "상승" ? "text-red-500" : "text-blue-500"
+                    }`}
+                  >
+                    {stockPrices[node.fullText || node.label].price}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-base">
+                  <span className="text-muted-foreground">전일대비:</span>
+                  <span
+                    className={
+                      stockPrices[node.fullText || node.label].direction === "상승"
+                        ? "text-red-500 font-semibold"
+                        : "text-blue-500 font-semibold"
+                    }
+                  >
+                    {stockPrices[node.fullText || node.label].direction}{" "}
+                    {stockPrices[node.fullText || node.label].change}{" "}
+                    {stockPrices[node.fullText || node.label].change_percent}
+                  </span>
+                </div>
+              </div>
+            ) : stockPrices[node.fullText || node.label] === null ? (
+              <div className="text-base text-gray-600 dark:text-gray-400 font-medium">
+                주가 정보를 불러올 수 없습니다
+              </div>
+            ) : (
+              <div className="text-base text-gray-600 dark:text-gray-400 font-medium">검색 도중 에러가 났습니다</div>
+            )}
+
+            {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-border">
+                <div className="text-base font-medium text-muted-foreground mb-2">관련 근거</div>
+                {node.data.evidence.map((evidence: any, idx: number) => {
+                  if (!evidence || typeof evidence !== "object") {
+                    return null
+                  }
+
+                  const sourceTitle = safeRender(evidence.source_title)
+                  const url = typeof evidence.url === "string" ? evidence.url : ""
+
+                  if (!sourceTitle) return null
+
+                  return (
+                    <div key={idx} className="mb-2 text-sm">
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline flex items-start gap-1"
+                        >
+                          <span className="flex-shrink-0 mt-0.5">🔗</span>
+                          <span className="break-words">{sourceTitle}</span>
+                        </a>
+                      ) : (
+                        <div className="text-muted-foreground">{sourceTitle}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {node.type === "input" && (
+          <div className="pt-3 border-t border-border">
+            <div className="text-base text-muted-foreground">정치인 정보</div>
+          </div>
+        )}
+      </div>
+      <div
+        className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+        style={{
+          bottom: "-8px",
+          borderLeft: "8px solid transparent",
+          borderRight: "8px solid transparent",
+          borderTop: "8px solid hsl(var(--border))",
+        }}
+      />
+      <div
+        className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+        style={{
+          bottom: "-7px",
+          borderLeft: "7px solid transparent",
+          borderRight: "7px solid transparent",
+          borderTop: "7px solid hsl(var(--background))",
+        }}
+      />
     </div>
   )
 }
 
-function getBorderColor(type: ProcessedNode["type"]) {
+function getBorderColor(type: string) {
   switch (type) {
     case "input":
       return "rgb(75, 85, 99)" // gray-600 for black nodes
