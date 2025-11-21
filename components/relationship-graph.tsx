@@ -61,10 +61,9 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       data: {},
     })
 
-    // Group by policy, sector, and company
-    const policyMap = new Map<string, any>()
-    const sectorMap = new Map<string, any>()
-    const companyMap = new Map<string, any>()
+    const policyNodes: ProcessedNode[] = []
+    const sectorMap = new Map<string, ProcessedNode>()
+    const companyMap = new Map<string, ProcessedNode>()
 
     data.influence_chains.forEach((chain, idx) => {
       // Safety checks for each chain
@@ -75,18 +74,16 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
 
       // Add policy node - skip if "None directly linked" or empty
       if (chain.policy && chain.policy !== "None directly linked" && chain.policy.trim() !== "") {
-        if (!policyMap.has(chain.policy)) {
-          policyMap.set(chain.policy, {
-            id: `policy-${policyMap.size + 1}`,
-            label: chain.policy,
-            fullText: chain.policy,
-            type: "policy",
-            data: {
-              description: chain.policy,
-              evidence: Array.isArray(chain.evidence) ? chain.evidence : [],
-            },
-          })
-        }
+        policyNodes.push({
+          id: `policy-${idx}`,
+          label: chain.policy,
+          fullText: chain.policy,
+          type: "policy",
+          data: {
+            description: chain.policy,
+            evidence: Array.isArray(chain.evidence) ? chain.evidence : [],
+          },
+        })
       }
 
       // Add sector node - with fallback
@@ -129,15 +126,14 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       }
     })
 
-    nodes.push(...Array.from(policyMap.values()))
+    nodes.push(...policyNodes)
     nodes.push(...Array.from(sectorMap.values()))
     nodes.push(...Array.from(companyMap.values()))
 
-    // Create edges with safety checks
     data.influence_chains.forEach((chain, idx) => {
       if (!chain) return
 
-      const policyNode = Array.from(policyMap.values()).find((p) => p.label === chain.policy)
+      const policyNode = policyNodes.find((p) => p.id === `policy-${idx}`)
       const sector = chain.industry_or_sector || "Unknown Sector"
       const sectorNode = Array.from(sectorMap.values()).find((s) => s.label === sector)
 
