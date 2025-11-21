@@ -89,28 +89,18 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         }
       }
 
+      // Add sector node - with fallback
       const sector = chain.industry_or_sector || "Unknown Sector"
       if (!sectorMap.has(sector)) {
         sectorMap.set(sector, {
           id: `sector-${sectorMap.size + 1}`,
           label: sector,
-          fullText: sector, // Add fullText for tooltip header
           type: "sector",
           data: {
-            sector: sector, // This is the industry_or_sector value (e.g., "Biopharmaceuticals")
-            impact_description: chain.impact_description || "영향 분석 정보가 없습니다.",
+            sector: sector,
+            impact_description: chain.impact_description || "No description available",
           },
         })
-      } else {
-        // If sector already exists, update impact_description if current chain has more detail
-        const existingNode = sectorMap.get(sector)
-        if (
-          chain.impact_description &&
-          (!existingNode.data.impact_description ||
-            existingNode.data.impact_description === "영향 분석 정보가 없습니다.")
-        ) {
-          existingNode.data.impact_description = chain.impact_description
-        }
       }
 
       // Add company nodes - with array safety check
