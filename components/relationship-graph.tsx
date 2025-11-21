@@ -271,9 +271,9 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           results[company] = { error: "검색도중 에러가 났습니다." }
         }
 
-        // Wait 1 second between requests to avoid rate limiting
+        // Wait 0.5 seconds instead of 1 second between requests to avoid rate limiting
         if (i < companyArray.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000))
+          await new Promise((resolve) => setTimeout(resolve, 500))
         }
       }
 
@@ -339,6 +339,15 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         height={dimensions.height}
         className="min-w-full"
         style={{ minWidth: isMobile ? "100%" : "800px" }}
+        onMouseMove={(e) => {
+          if (hoveredNode && svgRef.current) {
+            const rect = svgRef.current.getBoundingClientRect()
+            setTooltipPos({
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            })
+          }
+        }}
       >
         <g className="edges">
           {nodes
@@ -440,7 +449,20 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
             if (!pos) return null
 
             return (
-              <g key={node.id} onMouseEnter={() => setHoveredNode(node)} onMouseLeave={() => setHoveredNode(null)}>
+              <g
+                key={node.id}
+                onMouseEnter={(e) => {
+                  setHoveredNode(node)
+                  if (svgRef.current) {
+                    const rect = svgRef.current.getBoundingClientRect()
+                    setTooltipPos({
+                      x: e.clientX - rect.left,
+                      y: e.clientY - rect.top,
+                    })
+                  }
+                }}
+                onMouseLeave={() => setHoveredNode(null)}
+              >
                 <rect
                   x={pos.x - 117}
                   y={pos.y - 58.5}
