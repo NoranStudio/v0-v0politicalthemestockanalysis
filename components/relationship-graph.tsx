@@ -41,7 +41,18 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
     const nodes: ProcessedNode[] = []
     const edges: ProcessedEdge[] = []
 
-    // Create input node (politician)
+    // Safety check: ensure data and influence_chains exist
+    if (
+      !data ||
+      !data.influence_chains ||
+      !Array.isArray(data.influence_chains) ||
+      data.influence_chains.length === 0
+    ) {
+      console.error("[v0] Invalid or empty data structure:", data)
+      return { nodes: [], edges: [] }
+    }
+
+    // Create input node (politician) - with fallback
     const politician = data.influence_chains[0]?.politician || "Unknown"
     nodes.push({
       id: "input-1",
@@ -56,8 +67,14 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
     const companyMap = new Map<string, any>()
 
     data.influence_chains.forEach((chain, idx) => {
-      // Add policy node
-      if (chain.policy && chain.policy !== "None directly linked") {
+      // Safety checks for each chain
+      if (!chain) {
+        console.warn(`[v0] Skipping invalid chain at index ${idx}`)
+        return
+      }
+
+      // Add policy node - skip if "None directly linked" or empty
+      if (chain.policy && chain.policy !== "None directly linked" && chain.policy.trim() !== "") {
         if (!policyMap.has(chain.policy)) {
           policyMap.set(chain.policy, {
             id: `policy-${policyMap.size + 1}`,
@@ -66,97 +83,118 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
             type: "policy",
             data: {
               description: chain.policy,
-              evidence: chain.evidence,
+              evidence: Array.isArray(chain.evidence) ? chain.evidence : [],
             },
           })
         }
       }
 
-      // Add sector node
-      if (!sectorMap.has(chain.industry_or_sector)) {
-        sectorMap.set(chain.industry_or_sector, {
+      // Add sector node - with fallback
+      const sector = chain.industry_or_sector || "Unknown Sector"
+      if (!sectorMap.has(sector)) {
+        sectorMap.set(sector, {
           id: `sector-${sectorMap.size + 1}`,
-          label: chain.industry_or_sector,
+          label: sector,
           type: "sector",
           data: {
-            description: chain.impact_description,
+            description: chain.impact_description || "No description available",
           },
         })
       }
 
-      // Add company nodes
-      chain.companies.forEach((company) => {
-        if (!companyMap.has(company)) {
-          companyMap.set(company, {
-            id: `enterprise-${companyMap.size + 1}`,
-            label: company,
-            type: "enterprise",
-            data: {
-              stockData: {
-                symbol: company.match(/$$(\d+)$$/)?.[1] || "N/A",
-                price: 0,
-                change: 0,
-                changePercent: 0,
-              },
-            },
-          })
-        }
-      })
+      // Add company nodes - with array safety check
+      if (Array.isArray(chain.companies)) {
+        chain.companies.forEach((company) => {
+          if (company && company.trim() !== "") {
+            if (!companyMap.has(company)) {
+              // Extract stock symbol if present (format: "회사명 (025950)")
+              const symbolMatch = company.match(/$$(\d+)$$/)
+              companyMap.set(company, {
+                id: `enterprise-${companyMap.size + 1}`,
+                label: company,
+                type: "enterprise",
+                data: {
+                  stockData: {
+                    symbol: symbolMatch ? symbolMatch[1] : "N/A",
+                    price: 0,
+                    change: 0,
+                    changePercent: 0,
+                  },
+                },
+              })
+            }
+          }
+        })
+      }
     })
 
     nodes.push(...Array.from(policyMap.values()))
     nodes.push(...Array.from(sectorMap.values()))
     nodes.push(...Array.from(companyMap.values()))
 
-    // Create edges
+    // Create edges with safety checks
     data.influence_chains.forEach((chain, idx) => {
-      const policyNode = Array.from(policyMap.values()).find((p) => p.label === chain.policy)
-      const sectorNode = Array.from(sectorMap.values()).find((s) => s.label === chain.industry_or_sector)
+      if (!chain) return
 
-      // Input -> Policy
+      const policyNode = Array.from(policyMap.values()).find((p) => p.label === chain.policy)
+      const sector = chain.industry_or_sector || "Unknown Sector"
+      const sectorNode = Array.from(sectorMap.values()).find((s) => s.label === sector)
+
+      // Input -> Policy or Input -> Sector (if no policy)
       if (policyNode) {
         edges.push({
           id: `edge-input-policy-${idx}`,
           source: "input-1",
           target: policyNode.id,
-          data: { evidence: chain.evidence },
+          data: { evidence: Array.isArray(chain.evidence) ? chain.evidence : [] },
         })
-      } else {
+      } else if (sectorNode) {
         // If no policy, connect directly to sector
-        if (sectorNode) {
+        edges.push({
+          id: `edge-input-sector-${idx}`,
+          source: "input-1",
+          target: sectorNode.id,
+          data: {},
+        })
+      }
+
+      // Policy -> Sector
+      if (policyNode && sectorNode) {
+        const edgeId = `edge-policy-sector-${policyNode.id}-${sectorNode.id}`
+        // Avoid duplicate edges
+        if (!edges.find((e) => e.id === edgeId)) {
           edges.push({
-            id: `edge-input-sector-${idx}`,
-            source: "input-1",
+            id: edgeId,
+            source: policyNode.id,
             target: sectorNode.id,
             data: {},
           })
         }
       }
 
-      // Policy -> Sector
-      if (policyNode && sectorNode) {
-        edges.push({
-          id: `edge-policy-sector-${idx}`,
-          source: policyNode.id,
-          target: sectorNode.id,
-          data: {},
+      // Sector -> Company
+      if (Array.isArray(chain.companies) && sectorNode) {
+        chain.companies.forEach((company) => {
+          if (company && company.trim() !== "") {
+            const companyNode = Array.from(companyMap.values()).find((c) => c.label === company)
+            if (companyNode) {
+              const edgeId = `edge-sector-company-${sectorNode.id}-${companyNode.id}`
+              // Avoid duplicate edges
+              if (!edges.find((e) => e.id === edgeId)) {
+                edges.push({
+                  id: edgeId,
+                  source: sectorNode.id,
+                  target: companyNode.id,
+                  data: {},
+                })
+              }
+            }
+          }
         })
       }
-
-      // Sector -> Company
-      chain.companies.forEach((company) => {
-        const companyNode = Array.from(companyMap.values()).find((c) => c.label === company)
-        if (sectorNode && companyNode) {
-          edges.push({
-            id: `edge-sector-company-${idx}-${company}`,
-            source: sectorNode.id,
-            target: companyNode.id,
-            data: {},
-          })
-        }
-      })
     })
 
+    console.log("[v0] Processed nodes:", nodes.length, "edges:", edges.length)
     return { nodes, edges }
   }
 
@@ -315,6 +353,14 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
     }
   }
 
+  if (nodes.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
+        <p>관계도를 생성할 수 있는 데이터가 없습니다.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full overflow-x-auto">
       <TooltipProvider>
@@ -325,6 +371,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           className="min-w-full"
           style={{ minWidth: isMobile ? "100%" : "800px" }}
         >
+          {/* Draw edges */}
           <g className="edges">
             {edges.map((edge) => {
               const sourcePos = nodePositions.get(edge.source)
@@ -346,6 +393,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                     strokeWidth="2"
                     strokeDasharray="5,5"
                     className="transition-all"
+                    opacity="0.6"
                   />
                 </g>
               )
@@ -414,15 +462,15 @@ function NodeShape({ type, x, y, color, isSelected, isMobile }: NodeShapeProps) 
   const stroke = isSelected ? "hsl(var(--primary))" : "white"
   const scale = isMobile ? 0.8 : 1
 
-  let width = 180 * scale
-  let height = 90 * scale
+  let width = 234 * scale // 180 * 1.3
+  let height = 117 * scale // 90 * 1.3
 
   if (type === "input") {
-    width = 200 * scale
-    height = 100 * scale
+    width = 260 * scale // 200 * 1.3
+    height = 130 * scale // 100 * 1.3
   } else if (type === "enterprise") {
-    width = 170 * scale
-    height = 85 * scale
+    width = 221 * scale // 170 * 1.3
+    height = 110 * scale // 85 * 1.3
   }
 
   return (
@@ -455,7 +503,7 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         </div>
       </div>
 
-      {node.data.stockData && (
+      {node.data?.stockData && (
         <div className="pt-2 border-t border-border">
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-medium">현재가</span>
@@ -484,37 +532,43 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         </div>
       )}
 
-      {node.type === "sector" && node.data.description && (
+      {node.type === "sector" && node.data?.description && (
         <div className="pt-2 border-t border-border">
           <div className="text-xs font-medium text-muted-foreground mb-1">영향 분석</div>
           <p className="text-sm leading-relaxed whitespace-pre-line">{node.data.description}</p>
         </div>
       )}
 
-      {node.type === "policy" && node.data.evidence && node.data.evidence.length > 0 && (
-        <div className="pt-2 border-t border-border space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">관련 근거</div>
-          {node.data.evidence.map((evidence: any, idx: number) => (
-            <div key={idx} className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-foreground">{evidence.source_title}</span>
-              <a
-                href={evidence.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-primary hover:underline flex items-center gap-1"
-              >
-                <ExternalLink className="w-3 h-3" />
-                {evidence.url}
-              </a>
-            </div>
-          ))}
-        </div>
-      )}
+      {node.type === "policy" &&
+        node.data?.evidence &&
+        Array.isArray(node.data.evidence) &&
+        node.data.evidence.length > 0 && (
+          <div className="pt-2 border-t border-border space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">관련 근거</div>
+            {node.data.evidence.map((evidence: any, idx: number) => (
+              <div key={idx} className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-foreground">{evidence.source_title || "제목 없음"}</span>
+                {evidence.url && (
+                  <a
+                    href={evidence.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {evidence.url}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
     </div>
   )
 }
 
 function truncateText(text: string, maxLength: number): string {
+  if (!text) return "N/A"
   if (text.length <= maxLength) return text
   return text.substring(0, maxLength) + "..."
 }
