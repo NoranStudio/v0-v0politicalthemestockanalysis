@@ -4,8 +4,89 @@ from fastapi.responses import FileResponse
 import os
 import httpx
 from pydantic import BaseModel
+import requests
+from bs4 import BeautifulSoup
+import re
 
 app = FastAPI()
+
+def get_first_spt_con_text(query: str) -> str | None:
+    """네이버에서 주가 정보를 크롤링합니다."""
+    url = "https://search.naver.com/search.naver"
+    params = {
+        "where": "nexearch",
+        "sm": "tab_hty.top",
+        "ssc": "tab.nx.all",
+        "query": f"{query} 주가",
+    }
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    try:
+        res = requests.get(url, params=params, headers=headers, timeout=10)
+        res.raise_for_status()
+
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        # .spt_con.dw 또는 .spt_con.up 중 첫 번째
+        block = soup.select_one(".spt_con.dw, .spt_con.up")
+        if not block:
+            return None
+
+        return " ".join(block.stripped_strings)
+    except Exception as e:
+        print(f"Error fetching stock data for {query}: {e}")
+        return None
+
+def parse_stock_data(text: str) -> dict:
+    """
+    주가 텍스트를 파싱합니다.
+    예: "지수 476 전일대비 상승 1 (+0.21%)"
+    예: "KRX 장마감 지수 310,500 전일대비 하락 11,000 (-3.42%) 2025.11.21."
+    """
+    if not text:
+        return {"error": "데이터를 찾지 못했습니다."}
+    
+    try:
+        # "지수" 다음의 숫자 추출 (쉼표 포함 가능)
+        price_match = re.search(r'지수\s+([\d,]+)', text)
+        if not price_match:
+            return {"error": "데이터를 찾지 못했습니다."}
+        
+        price = price_match.group(1).replace(',', '')
+        
+        # 상승/하락 판단
+        is_up = '상승' in text
+        is_down = '하락' in text
+        
+        if not (is_up or is_down):
+            return {"error": "데이터를 찾지 못했습니다."}
+        
+        direction = "상승" if is_up else "하락"
+        
+        # 변동 금액 추출
+        change_match = re.search(r'(상승|하락)\s+([\d,]+)', text)
+        change = change_match.group(2).replace(',', '') if change_match else "0"
+        
+        # 변동률 추출
+        percent_match = re.search(r'$$([+-]?[\d.]+)%$$', text)
+        change_percent = percent_match.group(1) if percent_match else "0"
+        
+        return {
+            "price": price,
+            "direction": direction,
+            "change": change,
+            "change_percent": change_percent,
+            "raw_text": text
+        }
+    except Exception as e:
+        print(f"Error parsing stock data: {e}")
+        return {"error": "데이터를 찾지 못했습니다."}
 
 # 1. API 라우트들을 먼저 정의합니다.
 @app.get("/api/health")
@@ -14,6 +95,30 @@ def health_check():
 
 class QueryRequest(BaseModel):
     query: str
+
+class StockPriceRequest(BaseModel):
+    company: str
+
+@app.post("/api/stock-price")
+async def get_stock_price(request: StockPriceRequest):
+    """특정 기업의 주가 정보를 가져옵니다."""
+    try:
+        # 회사 이름에서 괄호 안의 내용 제거 (예: "KEPCO (한국전력)" -> "KEPCO")
+        company_name = re.sub(r'\s*$$[^)]*$$', '', request.company).strip()
+        
+        # 주가 정보 크롤링
+        stock_text = get_first_spt_con_text(company_name)
+        
+        if stock_text is None:
+            return {"error": "데이터를 찾지 못했습니다."}
+        
+        # 텍스트 파싱
+        parsed_data = parse_stock_data(stock_text)
+        
+        return parsed_data
+    except Exception as e:
+        print(f"Error in stock price endpoint: {e}")
+        return {"error": "검색도중 에러가 났습니다."}
 
 @app.post("/api/generate")
 async def proxy_generate(request: QueryRequest):
