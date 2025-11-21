@@ -323,6 +323,69 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                     )
                   })
               })}
+
+            {nodes
+              .filter((n) => n.type === "policy")
+              .map((policyNode) => {
+                const policyPos = nodePositions.get(policyNode.id)
+                if (!policyPos) return null
+
+                // Extract index from policy-{idx}
+                const policyIdx = policyNode.id.split("-")[1]
+                const sectorNode = nodes.find((n) => n.id === `sector-${policyIdx}`)
+                if (!sectorNode) return null
+
+                const sectorPos = nodePositions.get(sectorNode.id)
+                if (!sectorPos) return null
+
+                return (
+                  <line
+                    key={`edge-${policyNode.id}-${sectorNode.id}`}
+                    x1={policyPos.x}
+                    y1={policyPos.y}
+                    x2={sectorPos.x}
+                    y2={sectorPos.y}
+                    stroke="rgb(156, 163, 175)"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                    opacity="0.6"
+                  />
+                )
+              })}
+
+            {nodes
+              .filter((n) => n.type === "sector")
+              .map((sectorNode) => {
+                const sectorPos = nodePositions.get(sectorNode.id)
+                if (!sectorPos) return null
+
+                // Extract index from sector-{idx}
+                const sectorIdx = sectorNode.id.split("-")[1]
+
+                // Find all companies that belong to this sector (enterprise-{idx}-{companyIdx})
+                const companyNodes = nodes.filter(
+                  (n) => n.type === "enterprise" && n.id.startsWith(`enterprise-${sectorIdx}-`),
+                )
+
+                return companyNodes.map((companyNode) => {
+                  const companyPos = nodePositions.get(companyNode.id)
+                  if (!companyPos) return null
+
+                  return (
+                    <line
+                      key={`edge-${sectorNode.id}-${companyNode.id}`}
+                      x1={sectorPos.x}
+                      y1={sectorPos.y}
+                      x2={companyPos.x}
+                      y2={companyPos.y}
+                      stroke="rgb(156, 163, 175)"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                      opacity="0.6"
+                    />
+                  )
+                })
+              })}
           </g>
 
           {/* Draw nodes */}
