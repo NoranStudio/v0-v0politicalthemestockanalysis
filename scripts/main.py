@@ -58,7 +58,7 @@ def parse_stock_data(text: str) -> dict:
         if not price_match:
             return {"error": "데이터를 찾지 못했습니다."}
         
-        price = price_match.group(1).replace(',', '')
+        price = price_match.group(1)
         
         # 상승/하락 판단
         is_up = '상승' in text
@@ -71,7 +71,7 @@ def parse_stock_data(text: str) -> dict:
         
         # 변동 금액 추출
         change_match = re.search(r'(상승|하락)\s+([\d,]+)', text)
-        change = change_match.group(2).replace(',', '') if change_match else "0"
+        change = change_match.group(2) if change_match else "0"
         
         # 변동률 추출
         percent_match = re.search(r'$$([+-]?[\d.]+)%$$', text)
@@ -124,11 +124,11 @@ async def get_stock_price(request: StockPriceRequest):
 async def proxy_generate(request: QueryRequest):
     async with httpx.AsyncClient() as client:
         try:
-            # Forward the request to the query service running on port 8001
+            # Forward the request to the query service running on port 8000
             response = await client.post(
                 "http://127.0.0.1:8000/generate",
                 json={"query": request.query},
-                timeout=60.0  # Increased timeout for deep research
+                timeout=60.0
             )
             response.raise_for_status()
             return response.json()
@@ -137,24 +137,17 @@ async def proxy_generate(request: QueryRequest):
         except httpx.HTTPStatusError as exc:
             raise HTTPException(status_code=exc.response.status_code, detail=f"Query service error: {exc.response.text}")
 
-# ... 여기에 기존 백엔드 로직 추가 ...
-
 # 2. Next.js 빌드 결과물('out' 폴더)이 있는지 확인
-# 주의: 실제 실행 전 'npm run build'를 통해 out 폴더가 생성되어 있어야 합니다.
 build_dir = os.path.join(os.getcwd(), "out")
 
 if os.path.exists(build_dir):
     # 3. 정적 파일 마운트 (_next 폴더 등)
-    # Next.js의 정적 자산들은 주로 _next 경로 아래에 있습니다.
     app.mount("/_next", StaticFiles(directory=os.path.join(build_dir, "_next")), name="next")
     
     # 4. 루트 경로 및 기타 정적 파일 서빙
-    # SPA(Single Page Application)처럼 동작하게 하려면 404 발생 시 index.html을 반환하거나
-    # 특정 경로에 맞는 html을 반환해야 합니다.
-    
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        # 요청된 파일이 실제로 존재하면 그 파일을 반환 (예: favicon.ico, robots.txt)
+        # 요청된 파일이 실제로 존재하면 그 파일을 반환
         file_path = os.path.join(build_dir, full_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
@@ -164,15 +157,17 @@ if os.path.exists(build_dir):
         if os.path.exists(html_path) and os.path.isfile(html_path):
             return FileResponse(html_path)
             
+        # 루트 경로는 index.html 반환
         if full_path == "" or full_path == "/":
-             index_path = os.path.join(build_dir, "index.html")
-             if os.path.exists(index_path):
+            index_path = os.path.join(build_dir, "index.html")
+            if os.path.exists(index_path):
                 return FileResponse(index_path)
 
+        # 그 외 경로도 index.html 반환 (Client-side Routing 지원)
         index_path = os.path.join(build_dir, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
-        
+            
         raise HTTPException(status_code=404, detail="File not found and index.html not available")
 
 else:
