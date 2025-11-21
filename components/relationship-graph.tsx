@@ -494,7 +494,7 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
   return (
     <div className="space-y-3">
       <div>
-        <div className="font-semibold text-base mb-1">{node.fullText || node.label}</div>
+        <div className="font-semibold text-base mb-1">{String(node.fullText || node.label || "N/A")}</div>
         <div className="text-xs text-muted-foreground">
           {node.type === "input" && "검색 입력"}
           {node.type === "policy" && "관련 정책"}
@@ -512,7 +512,9 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{String(node.data.stockData.symbol || "N/A")}</span>
+            <span className="text-xs text-muted-foreground">
+              {node.data.stockData.symbol ? String(node.data.stockData.symbol) : "N/A"}
+            </span>
             <div
               className={cn(
                 "flex items-center gap-1 text-sm font-medium",
@@ -541,7 +543,9 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
       {node.type === "sector" && node.data?.description && (
         <div className="pt-2 border-t border-border">
           <div className="text-xs font-medium text-muted-foreground mb-1">영향 분석</div>
-          <p className="text-sm leading-relaxed whitespace-pre-line">{String(node.data.description)}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-line">
+            {typeof node.data.description === "string" ? node.data.description : JSON.stringify(node.data.description)}
+          </p>
         </div>
       )}
 
@@ -557,20 +561,26 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
                 return null
               }
 
+              // Extract title safely
+              const title = evidence.source_title || evidence.title || "제목 없음"
+              const titleString = typeof title === "string" ? title : String(title)
+
+              // Extract URL safely
+              const url = evidence.url || evidence.source_url || ""
+              const urlString = typeof url === "string" ? url : String(url)
+
               return (
                 <div key={idx} className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-foreground">
-                    {String(evidence.source_title || evidence.title || "제목 없음")}
-                  </span>
-                  {evidence.url && typeof evidence.url === "string" && (
+                  <span className="text-sm font-medium text-foreground">{titleString}</span>
+                  {urlString && (
                     <a
-                      href={evidence.url}
+                      href={urlString}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-primary hover:underline flex items-center gap-1"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      <span className="break-all">{evidence.url}</span>
+                      <span className="break-all">{urlString}</span>
                     </a>
                   )}
                 </div>
@@ -584,6 +594,7 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
 
 function truncateText(text: string, maxLength: number): string {
   if (!text) return "N/A"
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + "..."
+  const textString = typeof text === "string" ? text : String(text)
+  if (textString.length <= maxLength) return textString
+  return textString.substring(0, maxLength) + "..."
 }
