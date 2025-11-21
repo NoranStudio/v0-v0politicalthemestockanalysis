@@ -150,6 +150,42 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
     return "roundedRect"
   }
 
+  const getIntersectionPoint = (source: NodePosition, target: NodePosition, targetType: string, isMobile: boolean) => {
+    const scale = isMobile ? 0.8 : 1
+    let w = 140 * scale
+    let h = 70 * scale
+
+    if (targetType === "input") {
+      w = 160 * scale
+      h = 80 * scale
+    } else if (targetType === "enterprise") {
+      w = 130 * scale
+      h = 65 * scale
+    }
+
+    // Vector from target center to source center
+    const vx = source.x - target.x
+    const vy = source.y - target.y
+
+    if (vx === 0 && vy === 0) return target
+
+    // Calculate intersection with the box boundary
+    // Box is [-w/2, w/2] x [-h/2, h/2] relative to target center
+    // We want to find t such that (t*vx, t*vy) is on the boundary
+    // t_x = (w/2) / |vx|
+    // t_y = (h/2) / |vy|
+
+    const tX = Math.abs(vx) > 0 ? w / 2 / Math.abs(vx) : Number.POSITIVE_INFINITY
+    const tY = Math.abs(vy) > 0 ? h / 2 / Math.abs(vy) : Number.POSITIVE_INFINITY
+
+    const t = Math.min(tX, tY)
+
+    return {
+      x: target.x + vx * t,
+      y: target.y + vy * t,
+    }
+  }
+
   return (
     <div className="w-full overflow-x-auto">
       <TooltipProvider>
@@ -171,55 +207,35 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
             {data.edges.map((edge) => {
               const sourcePos = nodePositions.get(edge.source)
               const targetPos = nodePositions.get(edge.target)
+              const targetNode = data.nodes.find((n) => n.id === edge.target)
 
-              if (!sourcePos || !targetPos) return null
+              if (!sourcePos || !targetPos || !targetNode) return null
 
-              const dx = targetPos.x - sourcePos.x
-              const dy = targetPos.y - sourcePos.y
-              const length = Math.sqrt(dx * dx + dy * dy)
-              const nodeRadius = isMobile ? 45 : 65 // Approximate half-width of node
-
-              // Only shorten if line is long enough
-              let x2 = targetPos.x
-              let y2 = targetPos.y
-
-              if (length > nodeRadius) {
-                const ratio = (length - nodeRadius) / length
-                x2 = sourcePos.x + dx * ratio
-                y2 = sourcePos.y + dy * ratio
-              }
+              const endPoint = getIntersectionPoint(sourcePos, targetPos, targetNode.type, isMobile)
 
               return (
                 <g key={edge.id}>
+                  {/* Invisible thick line for easier hovering */}
                   <line
                     x1={sourcePos.x}
                     y1={sourcePos.y}
-                    x2={x2}
-                    y2={y2}
+                    x2={endPoint.x}
+                    y2={endPoint.y}
+                    stroke="transparent"
+                    strokeWidth="20"
+                  />
+                  {/* Visible line */}
+                  <line
+                    x1={sourcePos.x}
+                    y1={sourcePos.y}
+                    x2={endPoint.x}
+                    y2={endPoint.y}
                     stroke="hsl(var(--border))"
                     strokeWidth="2"
-                    strokeDasharray="5,5" // Added dotted line style
+                    strokeDasharray="5,5"
                     markerEnd="url(#arrow)"
-                    className="transition-all hover:stroke-primary hover:stroke-[3px]"
+                    className="transition-all group-hover:stroke-primary group-hover:stroke-[3px]"
                   />
-                  {edge.data.evidence && edge.data.evidence.length > 0 && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <circle
-                          cx={(sourcePos.x + targetPos.x) / 2}
-                          cy={(sourcePos.y + targetPos.y) / 2}
-                          r="8"
-                          fill="hsl(var(--muted))"
-                          stroke="hsl(var(--border))"
-                          strokeWidth="2"
-                          className="cursor-help hover:fill-primary/20"
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-sm bg-popover/90 backdrop-blur-sm border-border/50 shadow-xl">
-                        <EdgeTooltipContent edge={edge} />
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
                 </g>
               )
             })}
@@ -236,7 +252,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <g
-                        className="cursor-pointer transition-transform duration-300 ease-out hover:-translate-y-1" // Changed hover effect to slight rise instead of scale
+                        className="cursor-pointer transition-transform duration-300 ease-out hover:-translate-y-1"
                         onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
                       >
                         <NodeShape
@@ -375,7 +391,7 @@ function NodeTooltipContent({ node }: { node: GraphNode }) {
               href={evidence.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col gap-1 text-sm group" // Changed layout for evidence
+              className="flex flex-col gap-1 text-sm group"
             >
               <span className="font-medium text-foreground group-hover:text-primary transition-colors">
                 {evidence.source_title}
