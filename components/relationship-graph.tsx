@@ -399,9 +399,22 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">관련 정책: </span>
             <span className="font-medium">
-              {safeRender(node.data?.policy || node.data?.description || node.label || "N/A")}
+              {(() => {
+                const policyValue = node.data?.policy || node.data?.description || node.label || "N/A"
+                console.log("[v0] Policy tooltip - rendering policy:", policyValue)
+                return safeRender(policyValue)
+              })()}
             </span>
           </div>
+          {(() => {
+            console.log("[v0] Policy tooltip - evidence check:", {
+              exists: !!node.data?.evidence,
+              isArray: Array.isArray(node.data?.evidence),
+              length: node.data?.evidence?.length,
+              data: node.data?.evidence,
+            })
+            return null
+          })()}
           {node.data?.evidence && Array.isArray(node.data.evidence) && node.data.evidence.length > 0 && (
             <div className="mt-3">
               <div className="text-sm font-medium text-muted-foreground mb-2">관련 근거</div>
@@ -442,16 +455,24 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         <div className="pt-2 border-t border-border space-y-3">
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">산업 분야: </span>
-            <span className="font-medium">{safeRender(node.data?.sector || node.label || "N/A")}</span>
+            <span className="font-medium">
+              {(() => {
+                const sectorValue = node.data?.sector || node.label || "N/A"
+                console.log("[v0] Sector tooltip - rendering sector:", sectorValue)
+                return safeRender(sectorValue)
+              })()}
+            </span>
           </div>
-          {(node.data?.impactDescription || node.data?.impact_description) && (
-            <div className="text-sm">
-              <span className="font-medium text-muted-foreground">영향 분석: </span>
-              <span className="leading-relaxed">
-                {safeRender(node.data.impactDescription || node.data.impact_description)}
-              </span>
-            </div>
-          )}
+          <div className="text-sm">
+            <span className="font-medium text-muted-foreground">영향 분석: </span>
+            <span className="leading-relaxed">
+              {(() => {
+                const impactValue = node.data?.impactDescription || node.data?.impact_description || "정보 없음"
+                console.log("[v0] Sector tooltip - rendering impact:", impactValue)
+                return safeRender(impactValue)
+              })()}
+            </span>
+          </div>
         </div>
       )}
 
