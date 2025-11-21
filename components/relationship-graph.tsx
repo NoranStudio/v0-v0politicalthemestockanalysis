@@ -72,8 +72,8 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         return
       }
 
-      // Add policy node - skip if "None directly linked" or empty
-      if (chain.policy && chain.policy !== "None directly linked" && chain.policy.trim() !== "") {
+      // Add policy node - allow "None directly linked"
+      if (chain.policy && chain.policy.trim() !== "") {
         policyNodes.push({
           id: `policy-${idx}`,
           label: chain.policy,
@@ -443,6 +443,15 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
           {node.type === "enterprise" && "관련 기업"}
         </div>
       </div>
+
+      {node.type === "policy" && (
+        <div className="pt-2 border-t border-border space-y-2">
+          <div>
+            <div className="text-xs font-medium text-muted-foreground mb-1">관련 정책</div>
+            <p className="text-sm font-medium">{safeRender(node.data?.description || node.label)}</p>
+          </div>
+        </div>
+      )}
 
       {node.data?.stockData && (
         <div className="pt-2 border-t border-border">
