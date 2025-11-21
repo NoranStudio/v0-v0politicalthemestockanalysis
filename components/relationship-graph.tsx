@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import type { AnalysisReport } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react"
@@ -37,7 +37,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
 
-  const processData = () => {
+  const { nodes, edges } = useMemo(() => {
     const nodes: ProcessedNode[] = []
     const edges: ProcessedEdge[] = []
 
@@ -196,9 +196,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
 
     console.log("[v0] Processed nodes:", nodes.length, "edges:", edges.length)
     return { nodes, edges }
-  }
-
-  const { nodes, edges } = processData()
+  }, [data])
 
   useEffect(() => {
     const checkMobile = () => {
