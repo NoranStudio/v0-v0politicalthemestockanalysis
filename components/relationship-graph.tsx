@@ -544,7 +544,11 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         <div className="pt-2 border-t border-border">
           <div className="text-xs font-medium text-muted-foreground mb-1">영향 분석</div>
           <p className="text-sm leading-relaxed whitespace-pre-line">
-            {typeof node.data.description === "string" ? node.data.description : JSON.stringify(node.data.description)}
+            {typeof node.data.description === "string"
+              ? node.data.description
+              : typeof node.data.description === "object"
+                ? JSON.stringify(node.data.description)
+                : String(node.data.description || "")}
           </p>
         </div>
       )}
@@ -556,18 +560,17 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
           <div className="pt-2 border-t border-border space-y-2">
             <div className="text-xs font-medium text-muted-foreground">관련 근거</div>
             {node.data.evidence.map((evidence: any, idx: number) => {
-              // Ensure evidence is an object and has required properties
               if (!evidence || typeof evidence !== "object") {
                 return null
               }
 
-              // Extract title safely
               const title = evidence.source_title || evidence.title || "제목 없음"
-              const titleString = typeof title === "string" ? title : String(title)
+              const titleString =
+                typeof title === "string" ? title : typeof title === "object" ? JSON.stringify(title) : String(title)
 
-              // Extract URL safely
               const url = evidence.url || evidence.source_url || ""
-              const urlString = typeof url === "string" ? url : String(url)
+              const urlString =
+                typeof url === "string" ? url : typeof url === "object" ? JSON.stringify(url) : String(url)
 
               return (
                 <div key={idx} className="flex flex-col gap-1">
