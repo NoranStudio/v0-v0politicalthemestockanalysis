@@ -213,7 +213,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         })
       })
 
-      const policyTotalHeight = height - padding * 2
+      const policyTotalHeight = (height - padding * 2) * 1.5
       const policySpacing = policyTotalHeight / (policyNodes.length + 1)
       policyNodes.forEach((node, i) => {
         positions.set(node.id, {
@@ -222,7 +222,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         })
       })
 
-      const sectorTotalHeight = height - padding * 2
+      const sectorTotalHeight = (height - padding * 2) * 1.5
       const sectorSpacing = sectorTotalHeight / (sectorNodes.length + 1)
       sectorNodes.forEach((node, i) => {
         positions.set(node.id, {
@@ -231,7 +231,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
         })
       })
 
-      const enterpriseTotalHeight = height - padding * 2
+      const enterpriseTotalHeight = (height - padding * 2) * 1.5
       const enterpriseSpacing = enterpriseTotalHeight / (enterpriseNodes.length + 1)
       enterpriseNodes.forEach((node, i) => {
         positions.set(node.id, {
