@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import type { AnalysisReport } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react"
 import { cn, safeRender } from "@/lib/utils"
 
 interface RelationshipGraphProps {
@@ -28,14 +28,6 @@ interface ProcessedEdge {
   source: string
   target: string
   data: any
-}
-
-interface StockPriceData {
-  price?: string
-  direction?: "상승" | "하락"
-  change?: string
-  change_percent?: string
-  error?: string
 }
 
 export function RelationshipGraph({ data }: RelationshipGraphProps) {
@@ -475,37 +467,6 @@ function getBorderColor(type: ProcessedNode["type"]) {
 }
 
 function NodeTooltipContent({ node }: { node: ProcessedNode }) {
-  const [stockPrices, setStockPrices] = useState<Record<string, StockPriceData>>({})
-  const [loadingStocks, setLoadingStocks] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    if (node.type === "enterprise" && node.label) {
-      const companies = node.label.includes(",") ? node.label.split(",").map((c) => c.trim()) : [node.label]
-
-      companies.forEach(async (company) => {
-        if (!stockPrices[company] && !loadingStocks[company]) {
-          setLoadingStocks((prev) => ({ ...prev, [company]: true }))
-
-          try {
-            const response = await fetch("http://localhost:8001/api/stock-price", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ company }),
-            })
-
-            const data = await response.json()
-            setStockPrices((prev) => ({ ...prev, [company]: data }))
-          } catch (error) {
-            console.error(`Failed to fetch stock price for ${company}:`, error)
-            setStockPrices((prev) => ({ ...prev, [company]: { error: "검색도중 에러가 났습니다." } }))
-          } finally {
-            setLoadingStocks((prev) => ({ ...prev, [company]: false }))
-          }
-        }
-      })
-    }
-  }, [node.type, node.label])
-
   console.log("[v0] Rendering tooltip for node:", node.id, "data:", node.data)
 
   return (
@@ -596,76 +557,45 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         </div>
       )}
 
-      {node.type === "enterprise" && (
-        <div className="pt-2 border-t border-border space-y-4">
-          {(() => {
-            const companies = node.label.includes(",") ? node.label.split(",").map((c) => c.trim()) : [node.label]
-
-            return companies.map((company, idx) => {
-              const stockData = stockPrices[company]
-              const isLoading = loadingStocks[company]
-
-              return (
-                <div key={idx} className={cn("space-y-2", idx > 0 && "pt-4 border-t border-border/50")}>
-                  <div className="font-semibold text-base text-foreground">{company}</div>
-
-                  {isLoading && <div className="text-sm text-muted-foreground">주가 정보 로딩 중...</div>}
-
-                  {!isLoading && stockData?.error && (
-                    <div className="text-sm font-medium text-gray-600">
-                      {stockData.error === "데이터를 찾지 못했습니다."
-                        ? "주가 정보를 불러 올 수 없습니다"
-                        : stockData.error}
-                    </div>
-                  )}
-
-                  {!isLoading && stockData && !stockData.error && (
-                    <div className="space-y-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm text-muted-foreground">현재가:</span>
-                        <span
-                          className={cn(
-                            "text-2xl font-bold",
-                            stockData.direction === "상승" ? "text-red-500" : "text-blue-500",
-                          )}
-                        >
-                          {Number.parseInt(stockData.price || "0").toLocaleString()}원
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">전일대비</span>
-                        <span
-                          className={cn(
-                            "font-semibold",
-                            stockData.direction === "상승" ? "text-red-500" : "text-blue-500",
-                          )}
-                        >
-                          {stockData.direction}
-                        </span>
-                        <span
-                          className={cn(
-                            "font-medium",
-                            stockData.direction === "상승" ? "text-red-500" : "text-blue-500",
-                          )}
-                        >
-                          {Number.parseInt(stockData.change || "0").toLocaleString()}
-                        </span>
-                        <span
-                          className={cn(
-                            "font-medium",
-                            stockData.direction === "상승" ? "text-red-500" : "text-blue-500",
-                          )}
-                        >
-                          ({stockData.direction === "상승" ? "+" : ""}
-                          {stockData.change_percent}%)
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })
-          })()}
+      {node.data?.stockData && (
+        <div className="pt-2 border-t border-border">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-medium text-foreground">현재가</span>
+            <span className="text-base font-bold text-foreground">
+              {typeof node.data.stockData.price === "number"
+                ? node.data.stockData.price.toLocaleString()
+                : safeRender(node.data.stockData.price || "0")}
+              원
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {node.data.stockData.symbol ? safeRender(node.data.stockData.symbol) : "N/A"}
+            </span>
+            <div
+              className={cn(
+                "flex items-center gap-1 text-sm font-medium",
+                (node.data.stockData.change || 0) > 0 ? "text-stock-up" : "text-stock-down",
+              )}
+            >
+              {(node.data.stockData.change || 0) > 0 ? (
+                <TrendingUp className="w-4 h-4" />
+              ) : (
+                <TrendingDown className="w-4 h-4" />
+              )}
+              <span>
+                {(node.data.stockData.change || 0) > 0 ? "+" : ""}
+                {typeof node.data.stockData.change === "number"
+                  ? node.data.stockData.change.toLocaleString()
+                  : safeRender(node.data.stockData.change || "0")}
+                ({(node.data.stockData.changePercent || 0) > 0 ? "+" : ""}
+                {typeof node.data.stockData.changePercent === "number"
+                  ? node.data.stockData.changePercent.toFixed(2)
+                  : safeRender(node.data.stockData.changePercent || "0.00")}
+                %)
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
