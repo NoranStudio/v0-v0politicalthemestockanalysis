@@ -295,6 +295,36 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           className="min-w-full"
           style={{ minWidth: isMobile ? "100%" : "800px" }}
         >
+          <g className="edges">
+            {nodes
+              .filter((n) => n.type === "input")
+              .map((inputNode) => {
+                const inputPos = nodePositions.get(inputNode.id)
+                if (!inputPos) return null
+
+                return nodes
+                  .filter((n) => n.type === "policy")
+                  .map((policyNode) => {
+                    const policyPos = nodePositions.get(policyNode.id)
+                    if (!policyPos) return null
+
+                    return (
+                      <line
+                        key={`edge-${inputNode.id}-${policyNode.id}`}
+                        x1={inputPos.x}
+                        y1={inputPos.y}
+                        x2={policyPos.x}
+                        y2={policyPos.y}
+                        stroke="rgb(156, 163, 175)"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                        opacity="0.6"
+                      />
+                    )
+                  })
+              })}
+          </g>
+
           {/* Draw nodes */}
           <g className="nodes">
             {nodes.map((node) => {
@@ -329,7 +359,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                         </text>
                       </g>
                     </TooltipTrigger>
-                    <TooltipContent className="max-w-sm md:max-w-md bg-background/95 backdrop-blur-md border-border shadow-xl">
+                    <TooltipContent className="max-w-sm md:max-w-md bg-background/95 backdrop-blur-md border-border shadow-xl text-foreground">
                       <NodeTooltipContent node={node} />
                     </TooltipContent>
                   </Tooltip>
@@ -389,16 +419,16 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
   console.log("[v0] Rendering tooltip for node:", node.id, "data:", node.data)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 text-foreground">
       <div>
-        <div className="font-bold text-lg mb-1">{safeRender(node.fullText || node.label || "N/A")}</div>
+        <div className="font-bold text-lg mb-1 text-foreground">{safeRender(node.fullText || node.label || "N/A")}</div>
       </div>
 
       {node.type === "policy" && (
         <div className="pt-2 border-t border-border space-y-2">
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">관련 정책: </span>
-            <span className="font-medium">
+            <span className="font-medium text-foreground">
               {(() => {
                 const policyValue = node.data?.policy || node.data?.description || node.label || "N/A"
                 console.log("[v0] Policy tooltip - rendering policy:", policyValue)
@@ -455,7 +485,7 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
         <div className="pt-2 border-t border-border space-y-3">
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">산업 분야: </span>
-            <span className="font-medium">
+            <span className="font-medium text-foreground">
               {(() => {
                 const sectorValue = node.data?.sector || node.label || "N/A"
                 console.log("[v0] Sector tooltip - rendering sector:", sectorValue)
@@ -465,7 +495,7 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
           </div>
           <div className="text-sm">
             <span className="font-medium text-muted-foreground">영향 분석: </span>
-            <span className="leading-relaxed">
+            <span className="leading-relaxed text-foreground">
               {(() => {
                 const impactValue = node.data?.impactDescription || node.data?.impact_description || "정보 없음"
                 console.log("[v0] Sector tooltip - rendering impact:", impactValue)
@@ -479,8 +509,8 @@ function NodeTooltipContent({ node }: { node: ProcessedNode }) {
       {node.data?.stockData && (
         <div className="pt-2 border-t border-border">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium">현재가</span>
-            <span className="text-base font-bold">
+            <span className="text-sm font-medium text-foreground">현재가</span>
+            <span className="text-base font-bold text-foreground">
               {typeof node.data.stockData.price === "number"
                 ? node.data.stockData.price.toLocaleString()
                 : safeRender(node.data.stockData.price || "0")}
