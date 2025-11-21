@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import type { AnalysisReport } from "@/lib/types"
 import { ExternalLink } from "lucide-react"
 import { cn, safeRender } from "@/lib/utils"
+import { useMobile } from "@/hooks/useMobile"
 
 interface RelationshipGraphProps {
   data: AnalysisReport
@@ -37,16 +38,53 @@ interface StockPriceData {
   error?: string
 }
 
+const getNodeColor = (type: ProcessedNode["type"]) => {
+  switch (type) {
+    case "input":
+      return "rgb(17, 24, 39)" // Black (gray-900)
+    case "policy":
+      return "rgb(55, 65, 81)" // Dark gray (gray-700)
+    case "sector":
+      return "rgb(156, 163, 175)" // Light gray (gray-400)
+    case "enterprise":
+      return "rgb(243, 244, 246)" // White (gray-100)
+    default:
+      return "rgb(55, 65, 81)"
+  }
+}
+
+const getBorderColor = (type: ProcessedNode["type"]) => {
+  switch (type) {
+    case "input":
+      return "rgb(75, 85, 99)" // gray-600 for black nodes
+    case "policy":
+      return "rgb(107, 114, 128)" // gray-500 for dark gray nodes
+    case "sector":
+      return "rgb(209, 213, 219)" // gray-300 for light gray nodes
+    case "enterprise":
+      return "rgb(229, 231, 235)" // gray-200 for white nodes
+    default:
+      return "rgb(156, 163, 175)" // gray-400 default
+  }
+}
+
+const truncateText = (text: string, maxLength: number): string => {
+  if (!text) return "N/A"
+  const textString = typeof text === "string" ? text : String(text)
+  if (textString.length <= maxLength) return textString
+  return textString.substring(0, maxLength) + "..."
+}
+
 export function RelationshipGraph({ data }: RelationshipGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [dimensions, setDimensions] = useState({ width: 1000, height: 600 })
   const [nodePositions, setNodePositions] = useState<Map<string, NodePosition>>(new Map())
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
   const [hoveredNode, setHoveredNode] = useState<ProcessedNode | null>(null)
   const [stockPrices, setStockPrices] = useState<Record<string, StockPriceData>>({})
   const [isLoadingStocks, setIsLoadingStocks] = useState(true)
   const stockFetchedRef = useRef(false)
+  const { isMobile } = useMobile()
 
   const { nodes, edges } = useMemo(() => {
     const nodes: ProcessedNode[] = []
@@ -161,29 +199,32 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
   }, [data])
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener("resize", checkMobile)
-    return () => window.removeEventListener("resize", checkMobile)
-  }, [])
+    if (!data?.relationship_graph) return
 
-  useEffect(() => {
-    if (nodes.length > 0) {
+    const graph = data.relationship_graph
+    const newPositions = new Map<string, { x: number; y: number }>()
+
+    if (graph.nodes) {
+      const nodeHeight = 140
+      const verticalGap = 120
+
       const columnGroups = new Map<string, ProcessedNode[]>()
-      nodes.forEach((node) => {
-        const column = node.type
-        if (!columnGroups.has(column)) {
-          columnGroups.set(column, [])
-        }
-        columnGroups.get(column)!.push(node)
-      })
+      columnGroups.set("input", [])
+      columnGroups.set("policy", [])
+      columnGroups.set("sector", [])
+      columnGroups.set("enterprise", [])
 
-      const newPositions = new Map<string, NodePosition>()
-      const isMobile = window.innerWidth < 768
-      const verticalGap = 80
-      const nodeHeight = 100
+      graph.nodes.forEach((node) => {
+        const processedNode: ProcessedNode = {
+          id: node.id,
+          label: node.label,
+          fullText: node.fullText,
+          type: node.type,
+          data: node.data,
+        }
+        const group = columnGroups.get(node.type)
+        if (group) group.push(processedNode)
+      })
 
       const columnOrder = ["input", "policy", "sector", "enterprise"]
       const columns: ProcessedNode[][] = columnOrder.map((type) => columnGroups.get(type) || [])
@@ -191,7 +232,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       const maxNodesInColumn = Math.max(...columns.map((col) => col.length))
       const calculatedHeight = Math.max(600, maxNodesInColumn * (nodeHeight + verticalGap) + 200)
 
-      const columnWidth = isMobile ? 200 : 300
+      const columnWidth = isMobile ? 200 : 250
       const totalWidth = columns.length * columnWidth + 400
 
       columns.forEach((columnNodes, colIndex) => {
@@ -208,7 +249,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       setNodePositions(newPositions)
       setDimensions({ width: totalWidth, height: calculatedHeight })
     }
-  }, [nodes])
+  }, [data, isMobile])
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -288,21 +329,6 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
       setIsLoadingStocks(false)
     }
   }, [nodes])
-
-  const getNodeColor = (type: ProcessedNode["type"]) => {
-    switch (type) {
-      case "input":
-        return "rgb(17, 24, 39)" // Black (gray-900)
-      case "policy":
-        return "rgb(55, 65, 81)" // Dark gray (gray-700)
-      case "sector":
-        return "rgb(156, 163, 175)" // Light gray (gray-400)
-      case "enterprise":
-        return "rgb(243, 244, 246)" // White (gray-100)
-      default:
-        return "rgb(55, 65, 81)"
-    }
-  }
 
   const getTextColor = (type: ProcessedNode["type"]) => {
     switch (type) {
@@ -446,11 +472,10 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                 onMouseEnter={() => setHoveredNode(node)}
                 onMouseLeave={() => setHoveredNode(null)}
               >
-                <NodeShape
-                  type={node.type}
+                <NodeRect
                   x={pos.x}
                   y={pos.y}
-                  color={getNodeColor(node.type)}
+                  type={node.type}
                   isSelected={selectedNode === node.id}
                   isMobile={isMobile}
                 />
@@ -459,7 +484,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
                   y={pos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  className="text-sm md:text-lg font-medium pointer-events-none drop-shadow-md"
+                  className="text-sm md:text-xl font-medium pointer-events-none drop-shadow-md"
                   style={{ userSelect: "none", fill: getTextColor(node.type) }}
                 >
                   {truncateText(node.label, isMobile ? 15 : 20)}
@@ -475,7 +500,7 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
           className="absolute z-50 pointer-events-auto"
           style={{
             left: `${nodePositions.get(hoveredNode.id)?.x || 0}px`,
-            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 30}px`,
+            top: `${(nodePositions.get(hoveredNode.id)?.y || 0) - 45}px`,
             transform: "translate(-50%, -100%)",
           }}
           onMouseEnter={() => setHoveredNode(hoveredNode)}
@@ -488,23 +513,22 @@ export function RelationshipGraph({ data }: RelationshipGraphProps) {
   )
 }
 
-function NodeShape({
-  type,
+function NodeRect({
   x,
   y,
-  color,
+  type,
   isSelected,
   isMobile,
 }: {
-  type: ProcessedNode["type"]
   x: number
   y: number
-  color: string
+  type: string
   isSelected: boolean
   isMobile: boolean
 }) {
-  const width = isMobile ? 225 : 300
-  const height = isMobile ? 75 : 105
+  const color = getNodeColor(type)
+  const width = isMobile ? 225 : 250
+  const height = isMobile ? 75 : 140
   const rx = isMobile ? 8 : 10
   const ry = isMobile ? 8 : 10
 
@@ -535,9 +559,9 @@ function NodeTooltipContent({
   isLoadingStocks: boolean
 }) {
   return (
-    <div className="max-w-md bg-background/95 backdrop-blur-sm text-foreground rounded-lg shadow-xl border p-4">
+    <div className="max-w-xl bg-background/95 backdrop-blur-sm text-foreground rounded-lg shadow-xl border p-4">
       <div>
-        <div className="font-bold text-lg mb-1">{safeRender(node.fullText || node.label || "N/A")}</div>
+        <div className="font-bold text-xl mb-1">{safeRender(node.fullText || node.label || "N/A")}</div>
       </div>
 
       {node.type === "policy" && (
@@ -650,26 +674,4 @@ function NodeTooltipContent({
       )}
     </div>
   )
-}
-
-function getBorderColor(type: ProcessedNode["type"]) {
-  switch (type) {
-    case "input":
-      return "rgb(75, 85, 99)" // gray-600 for black nodes
-    case "policy":
-      return "rgb(107, 114, 128)" // gray-500 for dark gray nodes
-    case "sector":
-      return "rgb(209, 213, 219)" // gray-300 for light gray nodes
-    case "enterprise":
-      return "rgb(229, 231, 235)" // gray-200 for white nodes
-    default:
-      return "rgb(156, 163, 175)" // gray-400 default
-  }
-}
-
-function truncateText(text: string, maxLength: number): string {
-  if (!text) return "N/A"
-  const textString = typeof text === "string" ? text : String(text)
-  if (textString.length <= maxLength) return textString
-  return textString.substring(0, maxLength) + "..."
 }
